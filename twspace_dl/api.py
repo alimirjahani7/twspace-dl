@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import re
@@ -38,12 +40,12 @@ class HTTPClient:
         self.session.mount("https://", HTTPAdapter(max_retries=RETRY))
 
     def get(
-        self,
-        url: str,
-        params: dict[str, str] = {},
-        headers: dict[str, str] = {},
-        cookies: dict[str, str] = {},
-        timeout: int = TIMEOUT
+            self,
+            url: str,
+            params: dict[str, str] = {},
+            headers: dict[str, str] = {},
+            cookies: dict[str, str] = {},
+            timeout: int = TIMEOUT
     ) -> requests.Response:
         """Send HTTP GET requests to the specified URL.
 
@@ -159,11 +161,11 @@ class GraphQLAPI(APIClient):
         return json.dumps(obj, indent=None, separators=(",", ":"))
 
     def get(
-        self,
-        query_id: str,
-        operation_name: str,
-        variables: dict[str, str] | str,
-        features: dict[str, str] | str
+            self,
+            query_id: str,
+            operation_name: str,
+            variables: dict[str, str] | str,
+            features: dict[str, str] | str
     ) -> Any:
         """Send HTTP GET requests to the Twitter GraphQL API.
 
@@ -227,6 +229,39 @@ class GraphQLAPI(APIClient):
         """
         data = self.user_by_screen_name(screen_name)
         return data["data"]["user"]["result"]["rest_id"]
+
+    def user_tweets(self, user_id, number_of_tweets):
+        query_id = "jpCmlX6UgnPEZJknGKbmZA"
+        operation_name = "UserTweets"
+        variables = {
+            'userId': user_id,
+            'count': number_of_tweets,
+            "withTweetQuoteCount": True,
+            "includePromotedContent": True,
+            "withQuickPromoteEligibilityTweetFields": False,
+            "withSuperFollowsUserFields": True,
+            "withUserResults": True,
+            "withNftAvatar": False,
+            "withBirdwatchPivots": False,
+            "withReactionsMetadata": False,
+            "withReactionsPerspective": False,
+            "withSuperFollowsTweetFields": True,
+            "withVoice": True
+        }
+        features = '{}'
+        return self.get(query_id, operation_name, variables, features)
+
+    def user_by_id(self, user_id):
+        query_id = "I5nvpI91ljifos1Y3Lltyg"
+        operation_name = "UserByRestId"
+        variables = {
+            'userId': user_id,
+            "withSafetyModeUserFields": False,
+            "withSuperFollowsUserFields": False,
+            "withVoice": True
+        }
+        features = '{}'
+        return self.get(query_id, operation_name, variables, features)
 
     def user_id_from_url(self, user_url: str) -> str:
         """Retrieve the numeric user ID (`rest_id`) of the user that the specified profile URL linked to.
@@ -315,6 +350,7 @@ class LiveVideoStreamAPI(APIClient):
 
 class DummyAPI:
     """Dummy API class used for uninitialized APIs."""
+
     def __init__(self, api_name: str = "API") -> None:
         self.api_name = api_name
 

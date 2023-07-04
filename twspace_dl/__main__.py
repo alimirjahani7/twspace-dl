@@ -1,4 +1,6 @@
 """Script designed to help download twitter spaces"""
+from __future__ import annotations
+
 import argparse
 import datetime
 import json
@@ -18,9 +20,9 @@ EXIT_CODE_MISUSE = 2
 
 
 def exception_hook(
-    _: Type[BaseException],
-    exc_value: BaseException,
-    _t: TracebackType = None,
+        _: Type[BaseException],
+        exc_value: BaseException,
+        _t: TracebackType = None,
 ) -> None:
     """Make Exceptions more legible for the end users"""
     # Exception type and value
@@ -30,11 +32,11 @@ def exception_hook(
 def space(args: argparse.Namespace) -> int:
     """Manage the twitter space related function"""
     has_input = (
-        args.user_url
-        or args.input_url
-        or args.input_metadata
-        or args.from_dynamic_url
-        or args.from_master_url
+            args.user_url
+            or args.input_url
+            or args.input_metadata
+            or args.from_dynamic_url
+            or args.from_master_url
     )
     if not has_input:
         print(
@@ -89,7 +91,8 @@ def space(args: argparse.Namespace) -> int:
             twspace = Twspace({})
         twspace_dl = TwspaceDL(twspace, args.output)
     else:
-        logging.error("Due to Twitter API change, users must login to access it. Please provide a cookies file in Netscape format with the `--input-cookie-file` option.")
+        logging.error(
+            "Due to Twitter API change, users must login to access it. Please provide a cookies file in Netscape format with the `--input-cookie-file` option.")
         raise RuntimeError("Cannot load cookies from file")
 
     if args.from_dynamic_url:
