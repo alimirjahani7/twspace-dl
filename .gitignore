@@ -8,3 +8,4 @@ __pycache__
 .python-version
 cookies.txt
 /twitter-cookies.txt
+/.idea/
