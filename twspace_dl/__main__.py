@@ -7,10 +7,10 @@ import json
 import logging
 import sys
 from types import TracebackType
-from typing import Type
+from typing import Optional, Type
 
 from twspace_dl.api import API
-from twspace_dl.cookies import CookiesLoader
+from twspace_dl.cookies import load_cookies
 from twspace_dl.twspace import Twspace
 from twspace_dl.twspace_dl import TwspaceDL
 
@@ -48,7 +48,7 @@ def space(args: argparse.Namespace) -> int:
         log_filename = datetime.datetime.now().strftime(
             ".twspace-dl.%Y-%m-%d_%H-%M-%S_%f.log"
         )
-        handlers: list[logging.Handler] | None = [
+        handlers: Optional[list[logging.Handler]] = [
             logging.FileHandler(log_filename),
             logging.StreamHandler(),
         ]
@@ -69,34 +69,26 @@ def space(args: argparse.Namespace) -> int:
             handlers=handlers,
         )
 
-    if args.input_cookie_file:
-        cookies = CookiesLoader.load(args.input_cookie_file)
-        API.init_apis(cookies)
-        # print(json.dumps(API.graphql_api.user_by_screen_name('a'), indent=4))
-        # print(json.dumps(API.graphql_api.user_by_screen_name('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'), indent=4))
-        # return
-
-    if API:
-        if args.user_url:
-            twspace = Twspace.from_user_avatar(args.user_url)
-        elif args.input_metadata:
-            twspace = Twspace.from_file(args.input_metadata)
-        elif args.input_url:
-            twspace = Twspace.from_space_url(args.input_url)
-        else:
-            logging.warning(
-                (
-                    "No metadata provided.\n"
-                    "The resulting file won't be associated with the original space.\n"
-                    "Please consider adding a space url or a metadata file"
-                )
-            )
-            twspace = Twspace({})
-        twspace_dl = TwspaceDL(twspace, args.output)
+    API.init_apis(load_cookies(args.input_cookie_file))
+    # print(json.dumps(API.graphql_api.user_by_screen_name('a'), indent=4))
+    # print(json.dumps(API.graphql_api.user_by_screen_name('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'), indent=4))
+    # return
+    if args.user_url:
+        twspace = Twspace.from_user_avatar(args.user_url)
+    elif args.input_metadata:
+        twspace = Twspace.from_file(args.input_metadata)
+    elif args.input_url:
+        twspace = Twspace.from_space_url(args.input_url)
     else:
-        logging.error(
-            "Due to Twitter API change, users must login to access it. Please provide a cookies file in Netscape format with the `--input-cookie-file` option.")
-        raise RuntimeError("Cannot load cookies from file")
+        logging.warning(
+            (
+                "No metadata provided.\n"
+                "The resulting file won't be associated with the original space.\n"
+                "Please consider adding a space url or a metadata file"
+            )
+        )
+        twspace = Twspace({})
+    twspace_dl = TwspaceDL(twspace, args.output)
 
     if args.from_dynamic_url:
         twspace_dl.dyn_url = args.from_dynamic_url
@@ -141,7 +133,19 @@ def main() -> int:
     parser.add_argument("-s", "--skip-download", action="store_true")
     parser.add_argument("-k", "--keep-files", action="store_true")
     parser.add_argument("-l", "--log", action="store_true", help="create logfile")
-    parser.add_argument("-c", "--input-cookie-file", type=str, metavar="COOKIE_FILE")
+    parser.add_argument(
+        "-c",
+        "--input-cookie-file",
+        type=str,
+        metavar="COOKIE_FILE",
+        help=(
+            "cookies file in the Netscape format. The specs of the Netscape cookies format "
+            "can be found here: https://curl.se/docs/http-cookies.html. The cookies file is "
+            "now required due to the Twitter API change that prohibited guest user access to "
+            "Twitter API endpoints on 2023-07-01."
+        ),
+        required=True,
+    )
 
     input_method.add_argument("-i", "--input-url", type=str, metavar="SPACE_URL")
     input_method.add_argument("-U", "--user-url", type=str, metavar="USER_URL")
