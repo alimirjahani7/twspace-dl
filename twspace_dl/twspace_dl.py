@@ -75,9 +75,10 @@ class TwspaceDL:
         playlist_text = re.sub(r"(?=chunk)", master_url_wo_file, playlist_text)
         return playlist_text
 
-    def write_playlist(self, save_dir: str = "./") -> None:
+    def write_playlist(self, save_dir: str = "./", file_name: str = '') -> None:
         """Write the modified playlist for external use"""
-        filename = os.path.basename(self.filename) + ".m3u8"
+        file_name = file_name if file_name else self.filename
+        filename = os.path.basename(file_name) + ".m3u8"
         path = os.path.join(save_dir, filename)
         with open(path, "w", encoding="utf-8") as stream_io:
             stream_io.write(self.playlist_text)
