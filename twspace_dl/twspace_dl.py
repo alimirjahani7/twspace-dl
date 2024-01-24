@@ -112,7 +112,7 @@ class TwspaceDL:
 
         filename = os.path.basename(self.filename)
         filename_m3u8 = os.path.join(self._tempdir, filename + ".m3u8")
-        filename_old = os.path.join(self._tempdir, filename + ".m4a")
+        filename_old = os.path.join(self._tempdir, filename + ".aac")
         cmd_old = cmd_base.copy()
         cmd_old.insert(1, "-protocol_whitelist")
         cmd_old.insert(2, "file,https,httpproxy,tls,tcp")
@@ -120,49 +120,16 @@ class TwspaceDL:
         cmd_old.append(filename_old)
         logging.debug("Command for the old part: %s", " ".join(cmd_old))
 
-        if state == "Running":
-            filename_new = os.path.join(self._tempdir, filename + "_new.m4a")
-            cmd_new = cmd_base.copy()
-            cmd_new.insert(6, (self.dyn_url))
-            cmd_new.append(filename_new)
-
-            concat_fn = os.path.join(self._tempdir, "list.txt")
-            with open(concat_fn, "w", encoding="utf-8") as list_io:
-                list_io.write(
-                    "file "
-                    + f"'{os.path.abspath(os.path.join(os.getcwd(), filename_old))}'"
-                    + "\n"
-                    + "file "
-                    + f"'{os.path.abspath(os.path.join(os.getcwd(), filename_new))}'"
-                )
-
-            cmd_final = cmd_base.copy()
-            cmd_final.insert(1, "-f")
-            cmd_final.insert(2, "concat")
-            cmd_final.insert(3, "-safe")
-            cmd_final.insert(4, "0")
-            cmd_final.insert(10, concat_fn)
-            cmd_final.append(self.filename + ".m4a")
-
-            logging.debug("Command for the new part: %s", " ".join(cmd_new))
-            logging.debug("Command for the merge: %s", " ".join(cmd_final))
-            try:
-                subprocess.run(cmd_new, check=True)
-                subprocess.run(cmd_old, check=True)
-                subprocess.run(cmd_final, check=True)
-            except subprocess.CalledProcessError as err:
-                raise RuntimeError(" ".join(err.cmd)) from err
-        else:
-            try:
-                subprocess.run(cmd_old, check=True)
-            except subprocess.CalledProcessError as err:
-                raise RuntimeError(
-                    " ".join(err.cmd)
-                    + "\nThis might be a temporary error, retry in a few minutes"
-                ) from err
-            if os.path.dirname(self.filename):
-                os.makedirs(os.path.dirname(self.filename), exist_ok=True)
-            shutil.move(filename_old, self.filename + ".m4a")
+        try:
+            subprocess.run(cmd_old, check=True)
+        except subprocess.CalledProcessError as err:
+            raise RuntimeError(
+                " ".join(err.cmd)
+                + "\nThis might be a temporary error, retry in a few minutes"
+            ) from err
+        if os.path.dirname(self.filename):
+            os.makedirs(os.path.dirname(self.filename), exist_ok=True)
+        shutil.move(filename_old, self.filename + ".aac")
 
         logging.info("Finished downloading")
 

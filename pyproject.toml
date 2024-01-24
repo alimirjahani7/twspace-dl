@@ -16,6 +16,7 @@ classifiers = [
 python = "^3.8"
 requests = "^2.26.0"
 mutagen = "^1.46.0"
+requests-futures= "^1.0.1"
 
 
 [tool.poetry.scripts]
