@@ -112,7 +112,7 @@ class TwspaceDL:
 
         filename = os.path.basename(self.filename)
         filename_m3u8 = os.path.join(self._tempdir, filename + ".m3u8")
-        filename_old = os.path.join(self._tempdir, filename + ".aac")
+        filename_old = os.path.join(self._tempdir, filename + ".m4a")
         cmd_old = cmd_base.copy()
         cmd_old.insert(1, "-protocol_whitelist")
         cmd_old.insert(2, "file,https,httpproxy,tls,tcp")
@@ -129,7 +129,7 @@ class TwspaceDL:
             ) from err
         if os.path.dirname(self.filename):
             os.makedirs(os.path.dirname(self.filename), exist_ok=True)
-        shutil.move(filename_old, self.filename + ".aac")
+        shutil.move(filename_old, self.filename + ".m4a")
 
         logging.info("Finished downloading")
 
