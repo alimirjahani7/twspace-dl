@@ -62,7 +62,6 @@ class Twspace(dict):
     @staticmethod
     def _metadata(space_id: str) -> dict:
         metadata = API.graphql_api.audio_space_by_id(space_id)
-        print(metadata)
         try:
             media_key = metadata["data"]["audioSpace"]["metadata"]["media_key"]
             logging.debug("Media Key: %s", media_key)
