@@ -109,14 +109,11 @@ def space(args: argparse.Namespace) -> int:
     if not args.skip_download:
         try:
             twspace_dl.download()
-            # if args.embed_cover:
-            #     twspace_dl.embed_cover()
         except KeyboardInterrupt:
             logging.info("Download Interrupted by user")
         finally:
-            pass
-            # if not args.keep_files:
-            #     twspace_dl.cleanup()
+            if not args.keep_files:
+                twspace_dl.cleanup()
     return EXIT_CODE_SUCCESS
 
 

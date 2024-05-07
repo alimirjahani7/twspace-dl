@@ -60,20 +60,45 @@ class TwspaceDL:
 
     @property
     def playlist_url(self) -> str:
-        """Get the URL containing the chunks filenames"""
         response = API.client.get(self.master_url)
-        playlist_suffix = response.text.splitlines()[3]
+        response_text = response.text
+        has_inner = self.has_inner_play_list(response_text)
+        if not has_inner:
+            return self.master_url
+        else:
+            playlist_suffix = response_text.splitlines()[3]
+            if "#" in playlist_suffix:
+                playlist_suffix = response_text.splitlines()[-1]
         domain = urlparse(self.master_url).netloc
         playlist_url = f"https://{domain}{playlist_suffix}"
         return playlist_url
 
+    def has_inner_play_list(self, response_text):
+        return "/Transcoding" in response_text
+
     @property
     def playlist_text(self) -> str:
         """Modify the chunks URL using the master one to be able to download"""
-        playlist_text = API.client.get(self.playlist_url).text
-        master_url_wo_file = re.sub(r"master_playlist\.m3u8.*", "", self.master_url)
+        playlist_url = self.playlist_url
+        playlist = API.client.get(playlist_url)
+        playlist_text = playlist.text
+        if not self.master_url:
+            master_url_wo_file = self.find_master_url_wo(self.dyn_url)
+            playlist_text = re.sub(r"(?=chunk)", master_url_wo_file, playlist_text)
+            return playlist_text
+
+        # master_url_wo_file = re.sub(r"playlist.*\.m3u8.*", "", playlist_url)
+        # print(master_url_wo_file)
+        # if "https://" not in master_url_wo_file:
+        master_url_wo_file = self.find_master_url_wo(self.master_url)
+        if "https://" not in master_url_wo_file:
+            master_url_wo_file = self.find_master_url_wo(self.dyn_url)
         playlist_text = re.sub(r"(?=chunk)", master_url_wo_file, playlist_text)
         return playlist_text
+
+    def find_master_url_wo(self, target_url):
+        last_slash_index = target_url.rfind('/')
+        return target_url[:last_slash_index + 1]
 
     def write_playlist(self, save_dir: str = "./", file_name: str = '') -> None:
         """Write the modified playlist for external use"""
@@ -91,8 +116,6 @@ class TwspaceDL:
         space = self.space
         self._tempdir = tempfile.mkdtemp(dir=".")
         self.write_playlist(save_dir=self._tempdir)
-        state = space["state"]
-
         cmd_base = [
             "ffmpeg",
             "-y",
@@ -112,7 +135,14 @@ class TwspaceDL:
 
         filename = os.path.basename(self.filename)
         filename_m3u8 = os.path.join(self._tempdir, filename + ".m3u8")
-        filename_old = os.path.join(self._tempdir, filename + ".m4a")
+        is_audio = False
+        with open(filename_m3u8, "r") as file:
+            content = file.read()
+            if ".aac" in content:
+                is_audio = True
+        extension = ".m4a" if is_audio else ".mp4"
+        print(f'file extension {extension}')
+        filename_old = os.path.join(self._tempdir, filename + extension)
         cmd_old = cmd_base.copy()
         cmd_old.insert(1, "-protocol_whitelist")
         cmd_old.insert(2, "file,https,httpproxy,tls,tcp")
@@ -129,7 +159,7 @@ class TwspaceDL:
             ) from err
         if os.path.dirname(self.filename):
             os.makedirs(os.path.dirname(self.filename), exist_ok=True)
-        shutil.move(filename_old, self.filename + ".m4a")
+        shutil.move(filename_old, self.filename + extension)
 
         logging.info("Finished downloading")
 
