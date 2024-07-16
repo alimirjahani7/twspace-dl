@@ -70,7 +70,7 @@ def space(args: argparse.Namespace) -> int:
         )
 
     API.init_apis(load_cookies(args.input_cookie_file))
-    # print(json.dumps(API.graphql_api.user_by_screen_name('a'), indent=4))
+    # print(json.dumps(API.graphql_api.tweet_by_id('1813182195755815135'), indent=4))
     # print(json.dumps(API.graphql_api.user_by_screen_name('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'), indent=4))
     # return
     if args.user_url:
