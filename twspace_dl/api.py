@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import logging
 import re
+import urllib
 from typing import Any, NoReturn
 
 import requests
 from requests.adapters import HTTPAdapter, Retry
-from requests.exceptions import (ConnectionError, HTTPError, JSONDecodeError,
-                                 RetryError)
+from requests.exceptions import ConnectionError, HTTPError, Timeout, TooManyRedirects, RetryError
+from json import JSONDecodeError
 
 from .cookies import validate_cookies
 
@@ -208,7 +209,7 @@ class GraphQLAPI(APIClient):
         return self.get(query_id, operation_name, variables, features)
 
     def audio_space_by_id(self, space_id: str) -> dict:
-        query_id = "EoVDCbzvfujVk61M_WkTsQ"
+        query_id = "fYAuJHiY3TmYdBmrRtIKhA"
         operation_name = "AudioSpaceById"
         variables = {"id": space_id, "isMetatagsQuery": False, "withReplays": True, "withListeners": True}
         features = '{"spaces_2022_h2_spaces_communities":true,"spaces_2022_h2_clipping":true,"creator_subscriptions_tweet_preview_api_enabled":true,"rweb_tipjar_consumption_enabled":true,"responsive_web_graphql_exclude_directive_enabled":true,"verified_phone_label_enabled":false,"communities_web_enable_tweet_community_results_fetch":true,"c9s_tweet_anatomy_moderator_badge_enabled":true,"articles_preview_enabled":true,"responsive_web_graphql_skip_user_profile_image_extensions_enabled":false,"tweetypie_unmention_optimization_enabled":true,"responsive_web_edit_tweet_api_enabled":true,"graphql_is_translatable_rweb_tweet_is_translatable_enabled":true,"view_counts_everywhere_api_enabled":true,"longform_notetweets_consumption_enabled":true,"responsive_web_twitter_article_tweet_consumption_enabled":true,"tweet_awards_web_tipping_enabled":false,"creator_subscriptions_quote_tweet_preview_enabled":false,"freedom_of_speech_not_reach_fetch_enabled":true,"standardized_nudges_misinfo":true,"tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled":true,"tweet_with_visibility_results_prefer_gql_media_interstitial_enabled":true,"rweb_video_timestamps_enabled":true,"longform_notetweets_rich_text_read_enabled":true,"longform_notetweets_inline_media_enabled":true,"responsive_web_graphql_timeline_navigation_enabled":true,"responsive_web_enhance_cards_enabled":false}'
@@ -221,7 +222,7 @@ class GraphQLAPI(APIClient):
 
         - return: The details of the queried Twitter user.
         """
-        query_id = "oUZZZ8Oddwxs8Cd3iW3UEA"
+        query_id = "sLVLhk0bGj3MVFEKTdax1w"
         operation_name = "UserByScreenName"
         variables = {"screen_name": screen_name, "withSafetyModeUserFields": True}
         # "features" is copied as-is from real requests
@@ -239,7 +240,7 @@ class GraphQLAPI(APIClient):
 
         - return: The details of the queried Twitter user.
         """
-        query_id = "ZQEuHPrIYlvh1NAyIQHP_w"
+        query_id = "9zwVLJ48lmVUk8u_Gh9DmA"
         operation_name = "ProfileSpotlightsQuery"
         variables = {"screen_name": screen_name}
         return self.get(query_id, operation_name, variables)
@@ -260,7 +261,7 @@ class GraphQLAPI(APIClient):
             return data["data"]["user_result_by_screen_name"]["result"]["rest_id"]
 
     def user_tweets(self, user_id, number_of_tweets):
-        query_id = "jpCmlX6UgnPEZJknGKbmZA"
+        query_id = "HuTx74BxAnezK1gWvYY7zg"
         operation_name = "UserTweets"
         variables = {
             'userId': user_id,
@@ -281,7 +282,7 @@ class GraphQLAPI(APIClient):
         return self.get(query_id, operation_name, variables, features)
 
     def user_by_id(self, user_id):
-        query_id = "I5nvpI91ljifos1Y3Lltyg"
+        query_id = "GazOglcBvgLigl3ywt6b3Q"
         operation_name = "UserByRestId"
         variables = {
             'userId': user_id,
@@ -308,11 +309,10 @@ class GraphQLAPI(APIClient):
         - raise RuntimeError: If the specified URL is not a valid Twitter user profile URL.
         """
         if match := re.match(
-                r"^(?:https?:\/\/|)twitter\.com\/(?P<screen_name>\w+)$", user_url.strip("/")
+                r"^(?:https?:\/\/|)(?:twitter|x)\.com\/(?P<screen_name>\w+)$", user_url.strip("/")
         ):
             return self.user_id(match.group("screen_name"))
         raise RuntimeError(f"Invalid Twitter user URL: {user_url}")
-
 
     def tweet_by_id(self, tweet_id, cursor=None):
         query_id = "_8aYOgEDz35BrBcBal1-_w"
@@ -328,9 +328,6 @@ class GraphQLAPI(APIClient):
             "withBirdwatchNotes": True,
             "withVoice": True
         }
-
-        if cursor:
-            variables["cursor"] = cursor
 
         features = {
             "rweb_video_screen_enabled": False,
@@ -373,13 +370,67 @@ class GraphQLAPI(APIClient):
             "withDisallowedReplyControls": False
         }
 
-        return self.get(
-            query_id=query_id,
-            operation_name=operation_name,
-            variables=variables,
-            features=features,
-            field_toggles=field_toggles
-        )
+        return self.get(query_id, operation_name, variables, features, field_toggles)
+
+    def get_cookie_dict(self, path):
+        cookies = {}
+        with open(path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                parts = line.split('\t')
+                if len(parts) != 7:
+                    # not a valid cookie line
+                    continue
+
+                name = parts[5]
+                raw_value = parts[6]
+                if raw_value.startswith('"') and raw_value.endswith('"'):
+                    raw_value = raw_value[1:-1]
+                value = urllib.parse.unquote(raw_value)
+                cookies[name] = value
+        return cookies
+
+    def tweet_text_by_url(self, tweet_url: str, cookies_path) -> str:
+        import requests
+        tweet_id = re.search(r"status/(\d+)", tweet_url).group(1)
+        url = "https://x.com/i/api/graphql/_8aYOgEDz35BrBcBal1-_w/TweetDetail"
+        params = {
+            "variables": '{"focalTweetId":tweet_id,"with_rux_injections":false,"rankingMode":"Relevance","includePromotedContent":true,"withCommunity":true,"withQuickPromoteEligibilityTweetFields":true,"withBirdwatchNotes":true,"withVoice":true}',
+            "features": '{"rweb_video_screen_enabled":false,"profile_label_improvements_pcf_label_in_post_enabled":true,"rweb_tipjar_consumption_enabled":true,"verified_phone_label_enabled":false,"creator_subscriptions_tweet_preview_api_enabled":true,"responsive_web_graphql_timeline_navigation_enabled":true,"responsive_web_graphql_skip_user_profile_image_extensions_enabled":false,"premium_content_api_read_enabled":false,"communities_web_enable_tweet_community_results_fetch":true,"c9s_tweet_anatomy_moderator_badge_enabled":true,"responsive_web_grok_analyze_button_fetch_trends_enabled":false,"responsive_web_grok_analyze_post_followups_enabled":true,"responsive_web_jetfuel_frame":false,"responsive_web_grok_share_attachment_enabled":true,"articles_preview_enabled":true,"responsive_web_edit_tweet_api_enabled":true,"graphql_is_translatable_rweb_tweet_is_translatable_enabled":true,"view_counts_everywhere_api_enabled":true,"longform_notetweets_consumption_enabled":true,"responsive_web_twitter_article_tweet_consumption_enabled":true,"tweet_awards_web_tipping_enabled":false,"responsive_web_grok_show_grok_translated_post":false,"responsive_web_grok_analysis_button_from_backend":true,"creator_subscriptions_quote_tweet_preview_enabled":false,"freedom_of_speech_not_reach_fetch_enabled":true,"standardized_nudges_misinfo":true,"tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled":true,"longform_notetweets_rich_text_read_enabled":true,"longform_notetweets_inline_media_enabled":true,"responsive_web_grok_image_annotation_enabled":true,"responsive_web_enhance_cards_enabled":false}',
+            "fieldToggles": '{"withArticleRichContentState":true,"withArticlePlainText":false,"withGrokAnalyze":false,"withDisallowedReplyControls":false}'
+        }
+        params['variables'] = params['variables'].replace('tweet_id', tweet_id)
+
+        headers = {
+            "Accept": "*/*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Authorization": "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA",
+            "Content-Type": "application/json",
+            "Referer": tweet_url,
+            "Sec-CH-UA": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+            "Sec-CH-UA-Mobile": "?0",
+            "Sec-CH-UA-Platform": '"Windows"',
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+            "X-Client-Transaction-Id": "tA5vYayNBAqFK3QWjvLzdAawt9ETc7zV/8lv41a5a85d84SqSVXYjeH8+ijVcHNQF+z5dLeA/fFb7O0u1P39ZXcynFuwtw",
+            "X-Client-UUID": "3cf67b4d-737f-4e0e-b39b-b22939dcf33c",
+            "X-CSRF-Token": "4ee4ed3dee598a39fe1c871ac71973dba89ae44777f3cdeb6564ec2713fc3096744f4d7649d5896fcd651b83438b58c3eabef6adce8c4d37c0afdefdfd4a561771093dbf4b6bd1d2d0e90ba5a268f1cc",
+            "X-Twitter-Active-User": "yes",
+            "X-Twitter-Auth-Type": "OAuth2Session",
+            "X-Twitter-Client-Language": "en"
+        }
+
+        # If you need to send cookies separately:
+
+        cookies = self.get_cookie_dict(cookies_path)
+        headers["X-CSRF-Token"] = cookies["ct0"]
+        response = requests.get(url, headers=headers, params=params, cookies=cookies)
+        success = response.status_code == 200
+        return response.text, success
 
 
 class FleetsAPI(APIClient):

@@ -70,8 +70,8 @@ def space(args: argparse.Namespace) -> int:
         )
 
     API.init_apis(load_cookies(args.input_cookie_file))
-    # print(json.dumps(API.graphql_api.tweet_by_id('1813182195755815135'), indent=4))
-    # print(json.dumps(API.graphql_api.user_by_screen_name('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'), indent=4))
+    # tweet_url = "https://x.com/e_ercis/status/1916244739172577756"
+    # print(API.graphql_api.tweet_text_by_url(tweet_url, args.input_cookie_file))
     # return
     if args.user_url:
         twspace = Twspace.from_user_avatar(args.user_url)
