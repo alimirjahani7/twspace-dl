@@ -42,7 +42,7 @@ class Twspace(dict):
             self.source = metadata
             self.root = root
             self["id"] = root["rest_id"]
-            self["url"] = "https://twitter.com/i/spaces/" + self["id"]
+            self["url"] = "https://x.com/i/spaces/" + self["id"]
             self["title"] = root["title"]
             try:
                 self["start_date"] = datetime.fromtimestamp(
