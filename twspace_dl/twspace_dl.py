@@ -162,7 +162,8 @@ class TwspaceDL:
                     response = API.client.get(url)
                     with open(segment_file, "wb") as sf:
                         sf.write(response.content)
-                    f.write(f"file '{segment_file}'\n")
+                    # Use relative path for concat file
+                    f.write(f"file 'segments/segment_{i}.aac'\n")
                     if (i + 1) % 10 == 0:
                         logging.info(f"Downloaded {i + 1}/{len(segment_urls)} segments")
                 except Exception as e:
@@ -177,18 +178,19 @@ class TwspaceDL:
             "-y",
             "-f", "concat",
             "-safe", "0",
-            "-i", concat_file,
+            "-i", "concat.txt",
             "-c", "copy",
             "-metadata", f"title={space['title']}",
             "-metadata", f"artist={space['creator_name']}",
             "-metadata", f"episode_id={space['id']}",
-            filename_old
+            os.path.basename(filename_old)
         ]
 
         logging.debug("Concatenation command: %s", " ".join(cmd_concat))
 
         try:
-            subprocess.run(cmd_concat, check=True, capture_output=True, text=True)
+            # Run ffmpeg from the temp directory so relative paths work
+            subprocess.run(cmd_concat, cwd=self._tempdir, check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as err:
             logging.error(f"ffmpeg stderr: {err.stderr}")
             raise RuntimeError(
