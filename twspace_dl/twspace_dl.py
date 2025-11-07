@@ -142,6 +142,98 @@ class TwspaceDL:
                 is_audio = True
         extension = ".m4a" if is_audio else ".mp4"
         filename_old = os.path.join(self._tempdir, filename + extension)
+
+        # Download segments manually to avoid ffmpeg static build protocol_whitelist bug
+        logging.info("Downloading segments...")
+        segments_dir = os.path.join(self._tempdir, "segments")
+        os.makedirs(segments_dir, exist_ok=True)
+
+        # Parse m3u8 and download segments
+        with open(filename_m3u8, "r") as f:
+            lines = f.readlines()
+
+        segment_urls = [line.strip() for line in lines if line.strip() and not line.startswith("#")]
+        concat_file = os.path.join(self._tempdir, "concat.txt")
+
+        with open(concat_file, "w") as f:
+            for i, url in enumerate(segment_urls):
+                segment_file = os.path.join(segments_dir, f"segment_{i}.aac")
+                try:
+                    response = API.client.get(url)
+                    with open(segment_file, "wb") as sf:
+                        sf.write(response.content)
+                    f.write(f"file '{segment_file}'\n")
+                    if (i + 1) % 10 == 0:
+                        logging.info(f"Downloaded {i + 1}/{len(segment_urls)} segments")
+                except Exception as e:
+                    logging.error(f"Failed to download segment {i}: {e}")
+                    raise
+
+        logging.info(f"Downloaded all {len(segment_urls)} segments")
+
+        # Use ffmpeg concat demuxer to join segments
+        cmd_concat = [
+            "ffmpeg",
+            "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", concat_file,
+            "-c", "copy",
+            "-metadata", f"title={space['title']}",
+            "-metadata", f"artist={space['creator_name']}",
+            "-metadata", f"episode_id={space['id']}",
+            filename_old
+        ]
+
+        logging.debug("Concatenation command: %s", " ".join(cmd_concat))
+
+        try:
+            subprocess.run(cmd_concat, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as err:
+            logging.error(f"ffmpeg stderr: {err.stderr}")
+            raise RuntimeError(
+                " ".join(err.cmd)
+                + f"\nffmpeg error: {err.stderr}"
+            ) from err
+        if os.path.dirname(self.filename):
+            os.makedirs(os.path.dirname(self.filename), exist_ok=True)
+        shutil.move(filename_old, self.filename + extension)
+
+        logging.info("Finished downloading")
+
+    def old_download(self) -> None:
+        """Download a twitter space"""
+        if not shutil.which("ffmpeg"):
+            raise FileNotFoundError("ffmpeg not installed")
+        space = self.space
+        self._tempdir = tempfile.mkdtemp(dir=".")
+        self.write_playlist(save_dir=self._tempdir)
+        cmd_base = [
+            "ffmpeg",
+            "-y",
+            "-stats",
+            "-v",
+            "warning",
+            "-i",
+            "-c",
+            "copy",
+            "-metadata",
+            f"title={space['title']}",
+            "-metadata",
+            f"artist={space['creator_name']}",
+            "-metadata",
+            f"episode_id={space['id']}",
+        ]
+
+        filename = os.path.basename(self.filename)
+        filename_m3u8 = os.path.join(self._tempdir, filename + ".m3u8")
+        is_audio = False
+        with open(filename_m3u8, "r") as file:
+            content = file.read()
+            if ".aac" in content:
+                is_audio = True
+        extension = ".m4a" if is_audio else ".mp4"
+        filename_old = os.path.join(self._tempdir, filename + extension)
         cmd_old = cmd_base.copy()
         cmd_old.insert(1, "-protocol_whitelist")
         cmd_old.insert(2, "file,https,httpproxy,tls,tcp")
@@ -182,6 +274,6 @@ class TwspaceDL:
             raise
 
     def cleanup(self) -> None:
-        return
+        # return
         if os.path.exists(self._tempdir):
             shutil.rmtree(self._tempdir)
