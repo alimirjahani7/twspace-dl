@@ -12,7 +12,7 @@ from mutagen.mp4 import MP4, MP4Cover
 from .api import API
 from .twspace import Twspace
 
-DEFAULT_FNAME_FORMAT = "(%(creator_name)s)%(title)s-%(id)s"
+DEFAULT_FNAME_FORMAT = "%(title)s-%(id)s"
 MP4_COVER_FORMAT_MAP = {"jpg": MP4Cover.FORMAT_JPEG, "png": MP4Cover.FORMAT_PNG}
 
 
@@ -27,7 +27,7 @@ class TwspaceDL:
     @cached_property
     def filename(self) -> str:
         """Returns the formatted filename"""
-        filename = self.space.format(self.format_str)
+        filename = self.space.format(self.format_str).replace(' ', '_')
         return filename
 
     @cached_property
@@ -141,7 +141,6 @@ class TwspaceDL:
             if ".aac" in content:
                 is_audio = True
         extension = ".m4a" if is_audio else ".mp4"
-        print(f'file extension {extension}')
         filename_old = os.path.join(self._tempdir, filename + extension)
         cmd_old = cmd_base.copy()
         cmd_old.insert(1, "-protocol_whitelist")
@@ -153,6 +152,7 @@ class TwspaceDL:
         try:
             subprocess.run(cmd_old, check=True)
         except subprocess.CalledProcessError as err:
+            print(err)
             raise RuntimeError(
                 " ".join(err.cmd)
                 + "\nThis might be a temporary error, retry in a few minutes"
@@ -182,5 +182,6 @@ class TwspaceDL:
             raise
 
     def cleanup(self) -> None:
+        return
         if os.path.exists(self._tempdir):
             shutil.rmtree(self._tempdir)
