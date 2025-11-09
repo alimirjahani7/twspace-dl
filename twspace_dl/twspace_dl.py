@@ -155,31 +155,73 @@ class TwspaceDL:
         segment_urls = [line.strip() for line in lines if line.strip() and not line.startswith("#")]
         concat_file = os.path.join(self._tempdir, "concat.txt")
 
+        # Download segments with validation and error handling
+        successful_downloads = 0
+        failed_downloads = 0
+        total_size = 0
+        
         with open(concat_file, "w") as f:
             for i, url in enumerate(segment_urls):
                 segment_file = os.path.join(segments_dir, f"segment_{i}.aac")
-                try:
-                    response = API.client.get(url)
-                    with open(segment_file, "wb") as sf:
-                        sf.write(response.content)
-                    # Use relative path for concat file
-                    f.write(f"file 'segments/segment_{i}.aac'\n")
-                    if (i + 1) % 10 == 0:
-                        logging.info(f"Downloaded {i + 1}/{len(segment_urls)} segments")
-                except Exception as e:
-                    logging.error(f"Failed to download segment {i}: {e}")
-                    raise
+                
+                # Try downloading with retries
+                success = False
+                max_retries = 3
+                
+                for retry in range(max_retries):
+                    try:
+                        response = API.client.get(url)
+                        
+                        if response.status_code == 200:
+                            # Write segment to file
+                            with open(segment_file, "wb") as sf:
+                                sf.write(response.content)
+                            
+                            # Validate the segment using ffprobe
+                            if self._validate_segment(segment_file):
+                                file_size = len(response.content)
+                                total_size += file_size
+                                f.write(f"file 'segments/segment_{i}.aac'\n")
+                                successful_downloads += 1
+                                success = True
+                                
+                                if (i + 1) % 100 == 0:
+                                    logging.info(f"Downloaded {i + 1}/{len(segment_urls)} segments ({total_size:,} bytes)")
+                                break
+                            else:
+                                logging.warning(f"Segment {i} failed validation, retrying...")
+                                if os.path.exists(segment_file):
+                                    os.remove(segment_file)
+                        else:
+                            logging.warning(f"Segment {i}: HTTP {response.status_code}, retrying...")
+                            
+                    except Exception as e:
+                        logging.warning(f"Segment {i} download error (attempt {retry+1}): {e}")
+                    
+                    if not success and retry < max_retries - 1:
+                        logging.info(f"Retrying segment {i} (attempt {retry+2}/{max_retries})")
+                
+                if not success:
+                    logging.error(f"Failed to download segment {i} after {max_retries} attempts - skipping")
+                    failed_downloads += 1
+                    # Continue with next segment instead of stopping
+                    continue
 
-        logging.info(f"Downloaded all {len(segment_urls)} segments")
+        logging.info(f"Download complete: {successful_downloads} successful, {failed_downloads} failed, {total_size:,} bytes total")
+        
+        if successful_downloads == 0:
+            raise RuntimeError("No segments were successfully downloaded")
 
-        # Use ffmpeg concat demuxer to join segments
+        # Use ffmpeg concat demuxer to join segments with improved error handling
         cmd_concat = [
             "ffmpeg",
             "-y",
             "-f", "concat",
             "-safe", "0",
+            "-fflags", "+genpts",  # Generate proper timestamps
             "-i", "concat.txt",
             "-c", "copy",
+            "-avoid_negative_ts", "make_zero",  # Handle timestamp issues
             "-metadata", f"title={space['title']}",
             "-metadata", f"artist={space['creator_name']}",
             "-metadata", f"episode_id={space['id']}",
@@ -190,18 +232,57 @@ class TwspaceDL:
 
         try:
             # Run ffmpeg from the temp directory so relative paths work
-            subprocess.run(cmd_concat, cwd=self._tempdir, check=True, capture_output=True, text=True)
+            result = subprocess.run(cmd_concat, cwd=self._tempdir, check=True, capture_output=True, text=True)
+            logging.info("FFmpeg concatenation successful")
         except subprocess.CalledProcessError as err:
             logging.error(f"ffmpeg stderr: {err.stderr}")
-            raise RuntimeError(
-                " ".join(err.cmd)
-                + f"\nffmpeg error: {err.stderr}"
-            ) from err
+            
+            # Try alternative approach with ignore_unknown flag
+            logging.info("Trying alternative FFmpeg approach...")
+            cmd_alt = [
+                "ffmpeg", "-y", "-f", "concat", "-safe", "0", 
+                "-ignore_unknown", "-i", "concat.txt", 
+                "-c", "copy",
+                "-metadata", f"title={space['title']}",
+                "-metadata", f"artist={space['creator_name']}",
+                "-metadata", f"episode_id={space['id']}",
+                os.path.basename(filename_old)
+            ]
+            
+            try:
+                subprocess.run(cmd_alt, cwd=self._tempdir, check=True, capture_output=True, text=True)
+                logging.info("Alternative FFmpeg method succeeded")
+            except subprocess.CalledProcessError as err2:
+                logging.error(f"Alternative ffmpeg also failed: {err2.stderr}")
+                raise RuntimeError(
+                    " ".join(err.cmd)
+                    + f"\nffmpeg error: {err.stderr}"
+                    + f"\nAlternative ffmpeg error: {err2.stderr}"
+                ) from err
         if os.path.dirname(self.filename):
             os.makedirs(os.path.dirname(self.filename), exist_ok=True)
         shutil.move(filename_old, self.filename + extension)
 
         logging.info("Finished downloading")
+
+    def _validate_segment(self, segment_file):
+        """
+        Validate that a segment file is a valid AAC file using ffprobe.
+        """
+        try:
+            result = subprocess.run([
+                'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                '-of', 'csv=p=0', segment_file
+            ], capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0 and result.stdout.strip():
+                duration = float(result.stdout.strip())
+                # Valid segments should have duration > 0 and < 10 seconds (typical segment length)
+                return 0 < duration < 10
+            return False
+        except Exception as e:
+            logging.warning(f"Segment validation failed: {e}")
+            return False
 
     def old_download(self) -> None:
         """Download a twitter space"""
