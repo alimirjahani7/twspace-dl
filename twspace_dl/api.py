@@ -249,12 +249,37 @@ class GraphQLAPI(APIClient):
 
         - return: The details of the queried Twitter user.
         """
-        query_id = "sLVLhk0bGj3MVFEKTdax1w"
-        operation_name = "UserByScreenName"
-        variables = {"screen_name": screen_name, "withSafetyModeUserFields": True}
-        # "features" is copied as-is from real requests
-        features = '{"hidden_profile_likes_enabled":false,"responsive_web_graphql_exclude_directive_enabled":true,"verified_phone_label_enabled":false,"subscriptions_verification_info_verified_since_enabled":true,"highlights_tweets_tab_ui_enabled":true,"creator_subscriptions_tweet_preview_api_enabled":true,"responsive_web_graphql_skip_user_profile_image_extensions_enabled":false,"responsive_web_graphql_timeline_navigation_enabled":true}'
-        return self.get(query_id, operation_name, variables, features)
+        url = "https://x.com/i/api/graphql/ZHSN3WlvahPKVvUxVQbg1A/UserByScreenName"
+        params = {
+            "variables": '{"screen_name":"screen_name_placeholder","withGrokTranslatedBio":false}',
+            "features": '{"hidden_profile_subscriptions_enabled":true,"payments_enabled":false,"profile_label_improvements_pcf_label_in_post_enabled":true,"responsive_web_profile_redirect_enabled":false,"rweb_tipjar_consumption_enabled":true,"verified_phone_label_enabled":false,"subscriptions_verification_info_is_identity_verified_enabled":true,"subscriptions_verification_info_verified_since_enabled":true,"highlights_tweets_tab_ui_enabled":true,"responsive_web_twitter_article_notes_tab_enabled":true,"subscriptions_feature_can_gift_premium":true,"creator_subscriptions_tweet_preview_api_enabled":true,"responsive_web_graphql_skip_user_profile_image_extensions_enabled":false,"responsive_web_graphql_timeline_navigation_enabled":true}',
+            "fieldToggles": '{"withAuxiliaryUserLabels":true}'
+        }
+        params['variables'] = params['variables'].replace('screen_name_placeholder', screen_name)
+
+        headers = {
+            "Accept": "*/*",
+            "Accept-Language": "en-CA,en-GB;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Authorization": TWITTER_AUTHORIZATION,
+            "Content-Type": "application/json",
+            "Referer": f"https://x.com/{screen_name}",
+            "Sec-CH-UA": '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+            "Sec-CH-UA-Mobile": "?0",
+            "Sec-CH-UA-Platform": '"Linux"',
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+            "X-Twitter-Active-User": "yes",
+            "X-Twitter-Auth-Type": "OAuth2Session",
+            "X-Twitter-Client-Language": "en"
+        }
+
+        cookies = self.cookies
+        headers["X-CSRF-Token"] = cookies["ct0"]
+        response = requests.get(url, headers=headers, params=params, cookies=cookies)
+
+        return response.json()
 
     def profile_spotlights_query(self, screen_name: str) -> dict:
         """Backup API endpoint to query Twitter user details by their screen name (@ handle).
